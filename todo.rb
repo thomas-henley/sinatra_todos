@@ -6,6 +6,7 @@ require "tilt/erubis"
 configure do
   enable :sessions
   set :session_secret, 'secret'
+  set :erb, :escape_html => true
 end
 
 before do
@@ -49,18 +50,33 @@ end
 get "/lists/new" do
   erb :new_list, layout: :layout
 end
+  
+def valid_list_index?(index)
+  index < session[:lists].size
+end
+
+def invalid_list_redirect
+  session[:error] = "The specified list was not found."
+  redirect "/lists"
+end
 
 get "/lists/:index" do
+  invalid_list_redirect unless valid_list_index?(params[:index])
+  
   @list = session[:lists][params["index"].to_i]
   erb :list, layout: :layout
 end
 
 get "/lists/:index/edit" do
+  invalid_list_redirect unless valid_list_index?(params[:index])
+  
   @list = session[:lists][params["index"].to_i]
   erb :edit_list, layout: :layout
 end
 
 post "/lists/:index" do
+  invalid_list_redirect unless valid_list_index?(params[:index])
+  
   list_name = params[:list_name].strip
   @list = session[:lists][params["index"].to_i]
   error = error_for_list_name(list_name)
@@ -76,6 +92,8 @@ end
 
 # Add a todo task to the list
 post "/lists/:index/todos" do
+  invalid_list_redirect unless valid_list_index?(params[:index])
+  
   @list = session[:lists][params["index"].to_i]
   todo_name = params[:todo].strip
   error = error_for_todo_name(todo_name)
@@ -90,6 +108,8 @@ post "/lists/:index/todos" do
 end
 
 post "/lists/:index/todos/:todo_index" do
+  invalid_list_redirect unless valid_list_index?(params[:index])
+  
   @list = session[:lists][params["index"].to_i]
   todo = @list[:todos][params[:todo_index].to_i]
   todo[:completed] = (params[:completed] == "true")
@@ -97,6 +117,8 @@ post "/lists/:index/todos/:todo_index" do
 end
 
 post "/lists/:index/todos/:todo_index/delete" do
+  invalid_list_redirect unless valid_list_index?(params[:index])
+  
   @list = session[:lists][params["index"].to_i]
   @list[:todos].delete_at(params[:todo_index].to_i)
   session[:success] = "The todo was deleted."
@@ -104,6 +126,8 @@ post "/lists/:index/todos/:todo_index/delete" do
 end
 
 post "/lists/:index/complete_all" do
+  invalid_list_redirect unless valid_list_index?(params[:index])
+  
   @list = session[:lists][params["index"].to_i]
   @list[:todos].each do |todo|
     todo[:completed] = true
@@ -112,6 +136,8 @@ post "/lists/:index/complete_all" do
 end
 
 post "/lists/:index/delete" do
+  invalid_list_redirect unless valid_list_index?(params[:index])
+  
   session[:lists].delete_at(params[:index].to_i)
   session[:success] = "The list has been deleted."
   redirect "/lists"

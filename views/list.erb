@@ -1,4 +1,4 @@
-<section id="todos" <%= "class=\"complete\"" if complete?(@list) %>>
+<section id="todos" class="<%= complete?(@list) ? "complete" : "" %>">
   <header>
     <h2><%= @list[:name] %></h2>
     <ul>
