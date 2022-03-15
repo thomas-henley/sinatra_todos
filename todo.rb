@@ -52,7 +52,7 @@ get "/lists/new" do
 end
   
 def valid_list_index?(index)
-  index < session[:lists].size
+  index.to_i < session[:lists].size
 end
 
 def invalid_list_redirect

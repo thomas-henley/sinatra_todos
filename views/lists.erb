@@ -1,6 +1,6 @@
 <ul id="lists">
   <% sort_lists(@lists) do |list, index| %>
-    <li <%= "class=\"complete\"" if complete?(list) %>>
+    <li <%== "class=\"complete\"" if complete?(list) %>>
       <a href="/lists/<%= index %>">
         <h2><%= list[:name] %></h2>
         <p><%= "#{unfinished_tasks(list)}/#{list[:todos].size}" %></p>
