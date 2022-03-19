@@ -51,8 +51,8 @@ get "/lists/new" do
   erb :new_list, layout: :layout
 end
   
-def valid_list_index?(index)
-  index.to_i < session[:lists].size
+def valid_list_id?(id)
+  session[:lists].any? { |list| list[:id] == id.to_i }
 end
 
 def invalid_list_redirect
@@ -60,25 +60,25 @@ def invalid_list_redirect
   redirect "/lists"
 end
 
-get "/lists/:index" do
-  invalid_list_redirect unless valid_list_index?(params[:index])
+get "/lists/:list_id" do
+  invalid_list_redirect unless valid_list_id?(params[:list_id])
   
-  @list = session[:lists][params["index"].to_i]
+  @list = session[:lists].find { |list| list[:id] == params[:list_id].to_i }
   erb :list, layout: :layout
 end
 
-get "/lists/:index/edit" do
-  invalid_list_redirect unless valid_list_index?(params[:index])
+get "/lists/:list_id/edit" do
+  invalid_list_redirect unless valid_list_id?(params[:list_id])
   
-  @list = session[:lists][params["index"].to_i]
+  @list = session[:lists].find { |list| list[:id] == params[:list_id].to_i }
   erb :edit_list, layout: :layout
 end
 
-post "/lists/:index" do
-  invalid_list_redirect unless valid_list_index?(params[:index])
+post "/lists/:list_id" do
+  invalid_list_redirect unless valid_list_id?(params[:list_id])
   
   list_name = params[:list_name].strip
-  @list = session[:lists][params["index"].to_i]
+  @list = session[:lists].find { |list| list[:id] == params[:list_id].to_i }
   error = error_for_list_name(list_name)
   if error
     session[:error] = error
@@ -86,61 +86,79 @@ post "/lists/:index" do
   else
     @list[:name] = list_name
     session[:success] = "The list has been edited."
-    redirect "/lists/#{params[:index]}"
+    redirect "/lists/#{@list[:id]}"
   end
 end
 
+def next_id(collection)
+  max = collection.map { |elem| elem[:id] }.max || 0
+  max + 1
+end
+
 # Add a todo task to the list
-post "/lists/:index/todos" do
-  invalid_list_redirect unless valid_list_index?(params[:index])
+post "/lists/:list_id/todos" do
+  invalid_list_redirect unless valid_list_id?(params[:list_id])
   
-  @list = session[:lists][params["index"].to_i]
+  @list = session[:lists].find { |list| list[:id] == params[:list_id].to_i }
   todo_name = params[:todo].strip
   error = error_for_todo_name(todo_name)
   if error
     session[:error] = error
     erb :list, layout: :layout
   else
-    @list[:todos] << { name: todo_name, completed: false }
+    id = next_id(@list[:todos])
+    @list[:todos] << { id: id, name: todo_name, completed: false }
     session[:success] = "The todo was added."
-    redirect "/lists/#{params[:index]}"
+    redirect "/lists/#{@list[:id]}"
   end
 end
 
-post "/lists/:index/todos/:todo_index" do
-  invalid_list_redirect unless valid_list_index?(params[:index])
+# Toggle a todo's complete status
+post "/lists/:list_id/todos/:todo_id" do
+  invalid_list_redirect unless valid_list_id?(params[:list_id])
   
-  @list = session[:lists][params["index"].to_i]
-  todo = @list[:todos][params[:todo_index].to_i]
+  @list = session[:lists].find { |list| list[:id] == params[:list_id].to_i }
+  todo = @list[:todos].find { |elem| elem[:id] == params[:todo_id].to_i }
   todo[:completed] = (params[:completed] == "true")
-  redirect "/lists/#{params["index"].to_i}"
+  redirect "/lists/#{@list[:id]}"
 end
 
-post "/lists/:index/todos/:todo_index/delete" do
-  invalid_list_redirect unless valid_list_index?(params[:index])
+# delete item off of todo list
+post "/lists/:list_id/todos/:todo_id/delete" do
+  invalid_list_redirect unless valid_list_id?(params[:list_id])
   
-  @list = session[:lists][params["index"].to_i]
-  @list[:todos].delete_at(params[:todo_index].to_i)
-  session[:success] = "The todo was deleted."
-  redirect "/lists/#{params["index"].to_i}"
+  @list = session[:lists].find { |list| list[:id] == params[:list_id].to_i }
+  @list[:todos].reject! { |todo| todo[:id] == params[:todo_id].to_i }
+  if env["HTTP_X_REQUESTED_WITH"] == "XMLHttpRequest"
+    # ajax request
+    status 204
+  else
+    session[:success] = "The todo was deleted."
+    redirect "/lists/#{@list[:id]}"
+  end
 end
 
-post "/lists/:index/complete_all" do
-  invalid_list_redirect unless valid_list_index?(params[:index])
+post "/lists/:list_id/complete_all" do
+  invalid_list_redirect unless valid_list_id?(params[:list_id])
   
-  @list = session[:lists][params["index"].to_i]
+  @list = session[:lists].find { |list| list[:id] == params[:list_id].to_i }
   @list[:todos].each do |todo|
     todo[:completed] = true
   end
-  redirect "/lists/#{params[:index]}"
+  redirect "/lists/#{@list[:id]}"
 end
 
-post "/lists/:index/delete" do
-  invalid_list_redirect unless valid_list_index?(params[:index])
+post "/lists/:list_id/delete" do
+  invalid_list_redirect unless valid_list_id?(params[:list_id])
   
-  session[:lists].delete_at(params[:index].to_i)
-  session[:success] = "The list has been deleted."
-  redirect "/lists"
+  session[:lists].reject! { |list| list[:id] == params[:list_id].to_i }
+  if env["HTTP_X_REQUESTED_WITH"] == "XMLHttpRequest"
+    # ajax request
+    "/lists"
+  else
+    session[:success] = "The list has been deleted."
+    redirect "/lists"
+  end
 end
 
 def error_for_todo_name(name)
@@ -166,7 +184,8 @@ post "/lists" do
     session[:error] = error
     erb :new_list, layout: :layout
   else
-    session[:lists] << {name: list_name, todos: []}
+    id = next_id(session[:lists])
+    session[:lists] << {id: id, name: list_name, todos: []}
     session[:success] = "The list has been created."
     redirect "/lists"
   end
